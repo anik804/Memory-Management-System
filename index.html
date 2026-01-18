@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>OS Algorithm Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>OS Algorithm Visualizer</h1>
+
+        <div class="controls">
+            <select id="mode" onchange="toggleMode()">
+                <option value="page">Page Replacement</option>
+                <option value="memory">Memory Allocation</option>
+            </select>
+
+            <input id="input1">
+            <input id="input2">
+
+            <select id="algorithm"></select>
+            <button onclick="simulate()">Simulate</button>
+        </div>
+
+        <div id="output"></div>
+        <div id="summary" class="summary"></div>
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>

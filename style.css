@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300..700&display=swap');
+
+body{
+    font-family:"Lexend",sans-serif;
+    background:rgba(233,143,41,0.1);
+    padding:20px;
+    
+}
+
+.container{
+    max-width:1100px;
+    margin:auto;
+    background:#fff3e0;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 4px 10px rgba(0,0,0,.1);
+}
+
+h1{text-align:center;margin-bottom:15px;}
+
+.controls{
+    display:grid;
+    grid-template-columns:2fr 2fr 1fr;
+    gap:10px;
+    margin-bottom:15px;
+}
+
+input,select,button{
+    padding:10px;
+    font-size:15px;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+
+button{
+    grid-column:span 3;
+    background:#ff900e;
+    color:#fff;
+    border:none;
+    cursor:pointer;
+}
+button:hover{background:#ec7f03;}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+}
+
+th,td{
+    border:1px solid #ccc;
+    padding:8px;
+    text-align:center;
+}
+
+th{background:#f3f3f3;}
+
+.hit{
+    background:#2ecc71;
+    color:#fff;
+    font-weight:bold;
+}
+
+.miss{
+    background:#e74c3c;
+    color:#fff;
+    font-weight:bold;
+}
+
+.step-row{
+    opacity:0;
+    transform:translateY(20px);
+    transition:all .4s ease;
+}
+.step-row.show{
+    opacity:1;
+    transform:translateY(0);
+}
+
+.ref-bit{
+    display:block;
+    font-size:12px;
+    color:#444;
+}
+
+.summary{
+    margin-top:20px;
+    text-align:center;
+    font-weight:bold;
+    background:#ffd180;
+    padding:10px;
+    border-radius:6px;
+}
