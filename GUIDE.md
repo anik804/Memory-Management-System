@@ -64,8 +64,6 @@ Click the **"Run Performance Matrix"** button to start a comparative simulation.
 *   **Hit Ratio**: `(Hits / Total Requests) * 100`. Higher is better.
 *   **Hits**: Frequency a requested page was found in RAM.
 *   **Page Faults (Misses)**: Frequency a requested page had to be fetched from disk.
-*   **Throughput**: Pages handled per second.
-*   **Thrashing Rate**: Indicates if the system is overwhelmed (spending too much time swapping).
 
 ---
 

@@ -310,7 +310,6 @@ function runFIFO(ref, framesCount) {
         misses: faults,
         hits: hits,
         hitRatio: (hits / ref.length) * 100,
-        throughput: (ref.length / (duration / 1000)),
         steps: steps
     };
 }
@@ -351,7 +350,6 @@ function runLRU(ref, framesCount) {
         misses: faults,
         hits: hits,
         hitRatio: (hits / ref.length) * 100,
-        throughput: (ref.length / (duration / 1000)),
         steps: steps
     };
 }
@@ -394,7 +392,6 @@ function runOPT(ref, framesCount) {
         misses: faults,
         hits: hits,
         hitRatio: (hits / ref.length) * 100,
-        throughput: (ref.length / (duration / 1000)),
         steps: steps
     };
 }
@@ -628,7 +625,6 @@ async function ACTION_showMatrix(silent = false) {
         <tr><td>Hit Ratio (%)</td><td class="code-font">${res.fifo.hitRatio.toFixed(1)}%</td><td class="code-font">${res.lru.hitRatio.toFixed(1)}%</td><td class="code-font" style="color:var(--primary)">${res.opt.hitRatio.toFixed(1)}%</td></tr>
         <tr><td>Page Faults</td><td class="code-font">${res.fifo.misses}</td><td class="code-font">${res.lru.misses}</td><td class="code-font">${res.opt.misses}</td></tr>
         <tr><td>Hits</td><td class="code-font">${res.fifo.hits}</td><td class="code-font">${res.lru.hits}</td><td class="code-font">${res.opt.hits}</td></tr>
-        <tr><td>Throughput (pg/s)</td><td class="code-font">${res.fifo.throughput.toFixed(2)}</td><td class="code-font">${res.lru.throughput.toFixed(2)}</td><td class="code-font">${res.opt.throughput.toFixed(2)}</td></tr>
         </tbody>
     </table>
     <br/>
