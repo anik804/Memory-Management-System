@@ -216,114 +216,144 @@ function deallocateProcess(pid) {
 /* ---------------------------------------------------------
    PERFORMANCE MATRIX SIMULATION
 --------------------------------------------------------- */
-function runMatrixSimulation(inputPages) {
+function runMatrixSimulation(inputPages, frameCount = SYS.totalFrames) {
     // Force specific pages
     const pages = inputPages;
     const heavyLoad = () => { let x = 0; for(let z=0; z<100; z++) x += Math.sqrt(z); return x; };
 
-    const fifo = simulatePolicy('FIFO', pages, heavyLoad, true);
-    const lru = simulatePolicy('LRU', pages, heavyLoad, true);
-    const opt = simulatePolicy('OPT', pages, heavyLoad, true); 
+    const fifo = runFIFO(pages, frameCount);
+    const lru = runLRU(pages, frameCount);
+    const opt = runOPT(pages, frameCount); 
 
-    return { fifo, lru, opt, refString: pages };
+    return { fifo, lru, opt, refString: pages, frameCount };
 }
 
-function simulatePolicy(policy, pageRefs, workload, captureSteps = false) {
-    let frames = new Array(SYS.totalFrames).fill(-1);
-    let useBits = new Array(SYS.totalFrames).fill(0); 
-    let pageFaults = 0;
-    let hits = 0;
-    let pointer = 0; 
-    let steps = [];
+function padFrames(frames, limit) {
+    const padded = [...frames];
+    while(padded.length < limit) padded.push(-1);
+    return padded;
+}
 
+function runFIFO(ref, framesCount) {
+    let frames = [];
+    let queue = [];
+    let faults = 0;
+    let hits = 0;
+    let steps = [];
     let start = performance.now();
 
-    for (let i = 0; i < pageRefs.length; i++) {
-        let page = pageRefs[i];
-        let hitIndex = -1;
-        
-        for(let f=0; f < SYS.totalFrames; f++) {
-            if (frames[f] === page) { hitIndex = f; break; }
-        }
-
+    for (let page of ref) {
         let status = "Miss";
-        if (hitIndex !== -1) {
+        if (frames.includes(page)) {
             hits++;
             status = "Hit";
-            if (policy === 'LRU') useBits[hitIndex] = performance.now();
         } else {
-            pageFaults++;
-            let replaceIdx = -1;
-
-            if (policy === 'FIFO') {
-                replaceIdx = pointer;
-                pointer = (pointer + 1) % SYS.totalFrames;
-            } else if (policy === 'LRU') {
-                let emptySlot = frames.indexOf(-1);
-                if (emptySlot !== -1) replaceIdx = emptySlot;
-                else {
-                    let minVal = Infinity;
-                    let minIdx = 0;
-                    for(let f=0; f<SYS.totalFrames; f++) {
-                        if (useBits[f] < minVal) { minVal = useBits[f]; minIdx = f; }
-                    }
-                    replaceIdx = minIdx;
-                }
-            } else if (policy === 'OPT') {
-                let emptySlot = frames.indexOf(-1);
-                if (emptySlot !== -1) replaceIdx = emptySlot;
-                else {
-                    let farthest = -1;
-                    let victim = 0;
-                    for(let f=0; f<SYS.totalFrames; f++) {
-                        let nextUse = -1;
-                        for(let k=i+1; k<pageRefs.length; k++) {
-                            if(pageRefs[k] === frames[f]) {
-                                nextUse = k;
-                                break;
-                            }
-                        }
-                        if(nextUse === -1) {
-                            victim = f;
-                            break; 
-                        } else {
-                            if(nextUse > farthest) {
-                                farthest = nextUse;
-                                victim = f;
-                            }
-                        }
-                    }
-                    replaceIdx = victim;
-                }
+            faults++;
+            if (frames.length < framesCount) {
+                frames.push(page);
+                queue.push(page);
+            } else {
+                const removed = queue.shift();
+                frames[frames.indexOf(removed)] = page;
+                queue.push(page);
             }
-            workload(); 
-            frames[replaceIdx] = page;
-            useBits[replaceIdx] = performance.now();
         }
-        workload(); 
-        
-        if(captureSteps) {
-            steps.push({ 
-                p: page, 
-                frames: [...frames], 
-                status: status 
-            });
-        }
+        steps.push({ p: page, frames: padFrames(frames, framesCount), status: status });
     }
-
-    let end = performance.now();
-    let duration = (end - start) * 1000; 
-    if (duration < 100) duration += (Math.random() * 500) + 200;
+    
+    let duration = performance.now() - start;
+    if(duration < 0.1) duration = 0.5;
 
     return {
-        allocTime: duration,
-        throughput: (pageRefs.length / (duration / 1000000)) || 0,
-        resTime: duration / pageRefs.length,
-        thrashing: (pageFaults / pageRefs.length) * 100, 
+        misses: faults,
         hits: hits,
-        misses: pageFaults,
-        hitRatio: ((hits / pageRefs.length) * 100),
-        steps: steps 
+        hitRatio: (hits / ref.length) * 100,
+        throughput: (ref.length / (duration / 1000)),
+        steps: steps
+    };
+}
+
+function runLRU(ref, framesCount) {
+    let frames = [];
+    let recent = [];
+    let faults = 0;
+    let hits = 0;
+    let steps = [];
+    let start = performance.now();
+
+    for (let page of ref) {
+        let status = "Miss";
+        if (frames.includes(page)) {
+            hits++;
+            status = "Hit";
+            recent.splice(recent.indexOf(page), 1);
+            recent.push(page);
+        } else {
+            faults++;
+            if (frames.length < framesCount) {
+                frames.push(page);
+                recent.push(page);
+            } else {
+                const lruPage = recent.shift();
+                frames[frames.indexOf(lruPage)] = page;
+                recent.push(page);
+            }
+        }
+        steps.push({ p: page, frames: padFrames(frames, framesCount), status: status });
+    }
+
+    let duration = performance.now() - start;
+    if(duration < 0.1) duration = 0.5;
+
+    return {
+        misses: faults,
+        hits: hits,
+        hitRatio: (hits / ref.length) * 100,
+        throughput: (ref.length / (duration / 1000)),
+        steps: steps
+    };
+}
+
+function runOPT(ref, framesCount) {
+    let frames = [];
+    let faults = 0;
+    let hits = 0;
+    let steps = [];
+    let start = performance.now();
+
+    for (let i = 0; i < ref.length; i++) {
+        const page = ref[i];
+        let status = "Miss";
+
+        if (frames.includes(page)) {
+            hits++;
+            status = "Hit";
+        } else {
+            faults++;
+            if (frames.length < framesCount) {
+                frames.push(page);
+            } else {
+                const futureUse = frames.map(p => {
+                    const index = ref.slice(i + 1).indexOf(p);
+                    return index === -1 ? Infinity : index;
+                });
+
+                const replaceIndex = futureUse.indexOf(Math.max(...futureUse));
+                frames[replaceIndex] = page;
+            }
+        }
+        steps.push({ p: page, frames: padFrames(frames, framesCount), status: status });
+    }
+
+    let duration = performance.now() - start;
+    if(duration < 0.1) duration = 0.5;
+
+    return {
+        misses: faults,
+        hits: hits,
+        hitRatio: (hits / ref.length) * 100,
+        throughput: (ref.length / (duration / 1000)),
+        steps: steps
     };
 }
 
@@ -482,29 +512,38 @@ function calculateAndRenderStats() {
 
 async function ACTION_showMatrix(silent = false) {
     let pages = [];
+    let frameCount = SYS.totalFrames;
 
     if (!silent) {
         // Prompt User
-        const { value: text } = await Swal.fire({
-            title: 'Input Reference String',
-            input: 'text',
-            inputLabel: 'Space-separated page numbers',
-            inputValue: '1 2 3 4 1 2 5 1 2 3 4 5',
+        const { value: formValues } = await Swal.fire({
+            title: 'Performance Matrix',
+            html:
+                '<div style="text-align:left; margin-bottom:5px;"><label>Reference String</label></div>' +
+                '<input id="sw-ref" class="swal2-input" value="7 0 1 2 0 3 0 4 2 3 0 3" style="margin: 0 0 15px 0;">' +
+                '<div style="text-align:left; margin-bottom:5px;"><label>Comparison Frames</label></div>' +
+                '<input id="sw-frames" type="number" class="swal2-input" value="3" min="1" style="margin: 0;">',
+            focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Run Analysis',
             confirmButtonColor: '#4ade80',
             cancelButtonColor: '#ef4444',
             background: '#1f2937', color: '#f3f4f6',
-            inputValidator: (value) => {
-                if (!value) return 'Required!';
-                const nums = value.trim().split(/\s+/).map(Number);
-                if (nums.some(isNaN)) return 'Digits only!';
+            preConfirm: () => {
+                return [
+                    document.getElementById('sw-ref').value,
+                    document.getElementById('sw-frames').value
+                ]
             }
         });
 
-        if (text) {
-             pages = text.trim().split(/\s+/).map(Number);
+        if (formValues) {
+             pages = formValues[0].trim().split(/\s+/).map(Number);
+             frameCount = parseInt(formValues[1]);
+             if(!frameCount || frameCount < 1) frameCount = 3;
+
              SYS.lastRefString = pages;
+             SYS.lastRefFrames = frameCount;
         } else {
             return; // Cancelled
         }
@@ -512,16 +551,17 @@ async function ACTION_showMatrix(silent = false) {
         // Silent refresh
         if (SYS.lastRefString && SYS.lastRefString.length > 0) {
             pages = SYS.lastRefString;
+            if(SYS.lastRefFrames) frameCount = SYS.lastRefFrames;
         } else {
             return; 
         }
     }
 
-    const res = runMatrixSimulation(pages);
+    const res = runMatrixSimulation(pages, frameCount);
     
     // Existing Summary Table
     let html = `
-    <h3>Algorithms Comparison Summary</h3>
+    <h3>Algorithms Comparison Summary <span style="font-size:0.6em; color:var(--text-muted)">(Frames: ${res.frameCount})</span></h3>
     <table class="styled-table">
         <thead>
             <tr><th>Metric</th><th>FIFO</th><th>LRU</th><th>Optimal (OPT)</th></tr>
