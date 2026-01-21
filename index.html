@@ -1,36 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <title>OS Algorithm Visualizer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Management Simulator</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- GSAP for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-
 <body>
 
-    <div class="container">
-        <h1>OS Algorithm Visualizer</h1>
+<div class="container">
+    <h1>Memory Management Simulator</h1>
 
-        <div class="controls">
-            <select id="mode" onchange="toggleMode()">
-                <option value="page">Page Replacement</option>
-                <option value="memory">Memory Allocation</option>
-            </select>
-
-            <input id="input1">
-            <input id="input2">
-
-            <select id="algorithm"></select>
-            <button onclick="simulate()">Simulate</button>
+    <!-- SECTION 1: SYSTEM SETUP -->
+    <div id="step-setup" class="section active-section">
+        <h2>1. Configure System</h2>
+        <div class="input-grid">
+            <div class="form-group">
+                <label>Total Frames (RAM)</label>
+                <input type="number" id="sys-frames" placeholder="e.g. 50" value="50" min="1" oninput="validity.valid||(value='');">
+            </div>
+            <div class="form-group">
+                <label>Page Size (KB)</label>
+                <input type="number" id="sys-page-size" placeholder="e.g. 4" value="4" min="1" oninput="validity.valid||(value='');">
+            </div>
         </div>
-
-        <div id="output"></div>
-        <div id="summary" class="summary"></div>
+        <div class="form-group">
+            <label>Number of Processes</label>
+            <input type="number" id="sys-proc-count" placeholder="e.g. 5" value="5" min="1" oninput="validity.valid||(value='');">
+        </div>
+        <button onclick="UI_goToProcessInput()">Next: Define Processes &rarr;</button>
     </div>
 
-    <script src="script.js"></script>
+    <!-- SECTION 2: PROCESS DEFINITION -->
+    <div id="step-process" class="section">
+        <h2>2. Process Requirements</h2>
+        <p class="subtitle">Enter the memory requirement (KB) for each process.</p>
+        
+        <div id="process-inputs-grid" class="process-grid">
+            <!-- Dynamic Inputs -->
+        </div>
 
+        <div class="btn-group">
+            <button class="secondary" onclick="UI_switchSection('step-process', 'step-setup')">&larr; Back</button>
+            <button onclick="UI_initSimulation()">Initialize System &#9654;</button>
+        </div>
+    </div>
+
+    <!-- SECTION 3: DASHBOARD -->
+    <div id="step-dashboard" class="section">
+        <div class="dashboard-container">
+            
+            <!-- LEFT PANEL: CONTROLS -->
+            <div class="panel-card glass-panel">
+                <h3 class="panel-title">Control Panel</h3>
+
+                <!-- Deallocate -->
+                <div class="control-action">
+                    <label>Deallocate Memory</label>
+                    <div class="input-group">
+                        <select id="ctrl-dealloc-pid"></select>
+                        <button onclick="ACTION_deallocate()">Free</button>
+                    </div>
+                </div>
+
+                <!-- Request Additional -->
+                <div class="control-action">
+                    <label>Request Additional Memory</label>
+                    <select id="ctrl-req-pid" class="full-width-select"></select>
+                    <div class="input-group">
+                        <input type="number" id="ctrl-req-amt" placeholder="+ KB" min="1" oninput="validity.valid||(value='');">
+                        <button onclick="ACTION_requestMore()">Add</button>
+                    </div>
+                </div>
+
+                <!-- Update Process -->
+                <div class="control-action">
+                    <label>Update Process Memory</label>
+                    <select id="ctrl-upd-pid" class="full-width-select"></select>
+                    <div class="input-group">
+                        <input type="number" id="ctrl-upd-amt" placeholder="New Total KB" min="1" oninput="validity.valid||(value='');">
+                        <button onclick="ACTION_updateProcess()">Set</button>
+                    </div>
+                </div>
+
+                <!-- Performance Matrix -->
+                <button class="matrix-btn" onclick="ACTION_showMatrix()">
+                    Run Performance Matrix (FIFO / LRU / OPT)
+                </button>
+                
+                <button class="matrix-btn" style="margin-top: 10px; border-color: var(--warning); color: var(--warning);" onclick="UI_openAllocModal()">
+                    Visualize Contiguous Allocation (FF / BF / WF / NF)
+                </button>
+                
+                <button class="secondary full-width-btn" onclick="UI_reset()">
+                    Reset System
+                </button>
+            </div>
+
+            <!-- RIGHT PANEL: VISUALIZATION -->
+            <div class="viz-area">
+                <!-- RAM Grid -->
+                <div class="memory-viz glass-panel">
+                    <div class="viz-header">
+                        <h3>RAM Allocation Map</h3>
+                        <span class="mono-tag">[Frames: <span id="disp-total-frames">0</span>]</span>
+                    </div>
+                    
+                    <div id="viz-ram-grid" class="ram-grid">
+                        <!-- RAM Blocks go here -->
+                    </div>
+
+                    <!-- Statistics -->
+                    <div id="viz-stats" class="stats-row">
+                        <!-- Stats go here -->
+                    </div>
+                </div>
+
+                <!-- Active Processes List -->
+                <div class="process-list-container glass-panel">
+                    <h4 class="panel-title">Process Status</h4>
+                    <div id="viz-proc-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HIDDEN MATRIX SECTION -->
+        <div id="matrix-modal" class="matrix-container glass-panel" style="display: none;">
+            <div class="modal-header">
+                <h2>Performance Matrix & Execution Log</h2>
+                <button class="secondary small-btn" onclick="closeMatrix()">Close</button>
+            </div>
+            
+            <div id="matrix-body-container">
+                <!-- JS will inject Summary Table + 3 Step-by-Step Tables here -->
+            </div>
+        </div>
+
+        <!-- ALLOCATION MODAL -->
+        <div id="alloc-modal" class="matrix-container glass-panel" style="display: none; position:fixed; top:5%; left:5%; right:5%; bottom:5%; overflow-y:auto; z-index:1000; background: rgba(31, 41, 55, 0.98); border: 2px solid var(--warning);">
+            <div class="modal-header">
+                <h2>Contiguous Memory Allocation</h2>
+                <button class="secondary small-btn" onclick="UI_closeAllocModal()">Close</button>
+            </div>
+            
+            <div class="input-grid">
+                <div class="form-group">
+                     <label>Block Sizes (Space separated)</label>
+                     <input type="text" id="alloc-input-blocks" value="100 500 200 300 600">
+                </div>
+                <div class="form-group">
+                     <label>Process Sizes (Space separated)</label>
+                     <input type="text" id="alloc-input-procs" value="212 417 112 426">
+                </div>
+            </div>
+            
+             <div class="input-grid">
+                <div class="form-group">
+                    <label>Algorithm</label>
+                    <select id="alloc-select-algo">
+                        <option value="FF">First Fit (FF)</option>
+                        <option value="BF">Best Fit (BF)</option>
+                        <option value="WF">Worst Fit (WF)</option>
+                        <option value="NF">Next Fit (NF)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <button class="full-width-btn" style="background-color: var(--warning); color: #000;" onclick="ACTION_runAllocSim()">Simulate Allocation</button>
+                </div>
+            </div>
+            
+            <div id="alloc-output" class="table-vis-output"></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="script.js"></script>
 </body>
-
 </html>
