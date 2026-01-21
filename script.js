@@ -568,7 +568,7 @@ async function ACTION_showMatrix(silent = false) {
     document.getElementById('matrix-body-container').innerHTML = html;
     
     if(!silent) {
-        gsap.fromTo('.matrix-container', { display: 'none', y: 50, opacity: 0 }, { display: 'block', y: 0, opacity: 1, duration: 0.5 });
+        gsap.fromTo('#matrix-modal', { display: 'none', y: 50, opacity: 0 }, { display: 'block', y: 0, opacity: 1, duration: 0.5 });
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         
         Swal.fire({ icon: 'success', title: 'Analysis Complete', toast:true, position:'top-end', showConfirmButton:false, timer:3000, background: '#1f2937', color: '#f3f4f6' });
@@ -576,7 +576,7 @@ async function ACTION_showMatrix(silent = false) {
 }
 
 function closeMatrix() {
-    gsap.to('.matrix-container', { duration: 0.3, opacity: 0, y: 20, onComplete: () => {
+    gsap.to('#matrix-modal', { duration: 0.3, opacity: 0, y: 20, onComplete: () => {
         document.getElementById('matrix-modal').style.display = 'none';
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }});
