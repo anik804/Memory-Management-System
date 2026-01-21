@@ -333,9 +333,7 @@ button.secondary:hover {
 }
 
 .ram-block.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    box-shadow: 0 0 15px var(--primary-glow);
+    border-color: transparent !important;
     animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -351,16 +349,19 @@ button.secondary:hover {
     }
 }
 
-.ram-block.active .pid {
-    font-size: 1rem;
+.ram-block.active .pid-tag {
+    font-size: 0.9rem;
     font-weight: 800;
-    color: #064e3b;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
-.ram-block.active .page {
+.ram-block.active .page-num {
     font-size: 0.6rem;
-    color: #064e3b;
-    opacity: 0.8;
+    color: #ffffff;
+    opacity: 0.9;
+    font-weight: 500;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.2);
 }
 
 /* Stats */

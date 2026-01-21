@@ -116,58 +116,97 @@ function requiredPages(memReq, pgSize) {
     return Math.ceil(memReq / pgSize);
 }
 
+const COLORS = [
+    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+];
+
+function getProcessColor(pid) {
+    return COLORS[(pid - 1) % COLORS.length];
+}
+
 function allocateMemory() {
     let changed = false;
+
+    // Pass 1: Shrink and Free (Release space first)
     SYS.processes.forEach(proc => {
         const pagesNeeded = requiredPages(proc.memoryRequirement, SYS.pageSize);
-        let allocatedPages = 0;
-
-        for (let j = 0; j < SYS.totalFrames && allocatedPages < pagesNeeded; j++) {
-            if (SYS.frames[j].assigned === 0) {
-                SYS.frames[j].assigned = 1;
-                SYS.frames[j].processId = proc.processId;
-                SYS.frames[j].pageNumber = allocatedPages + 1;
-                allocatedPages++;
-                changed = true;
-            } else if (SYS.frames[j].processId === proc.processId) {
-                SYS.frames[j].pageNumber = allocatedPages + 1;
-                allocatedPages++;
+        let currentFrames = [];
+        for (let i = 0; i < SYS.totalFrames; i++) {
+            if (SYS.frames[i].assigned && SYS.frames[i].processId === proc.processId) {
+                currentFrames.push({ idx: i, page: SYS.frames[i].pageNumber });
             }
         }
+        currentFrames.sort((a, b) => a.page - b.page);
 
-        if (allocatedPages === pagesNeeded) {
-            for (let j = 0; j < SYS.totalFrames; j++) {
-                if (SYS.frames[j].assigned === 1 && 
-                    SYS.frames[j].processId === proc.processId) {
-                    if (SYS.frames[j].pageNumber > allocatedPages) {
-                        SYS.frames[j].assigned = 0;
-                        SYS.frames[j].processId = -1;
-                        SYS.frames[j].pageNumber = -1;
-                        changed = true;
-                    }
+        if (currentFrames.length > pagesNeeded) {
+            for (let i = pagesNeeded; i < currentFrames.length; i++) {
+                const fIdx = currentFrames[i].idx;
+                SYS.frames[fIdx].assigned = 0;
+                SYS.frames[fIdx].processId = -1;
+                SYS.frames[fIdx].pageNumber = -1;
+                changed = true;
+            }
+        }
+    });
+
+    // Pass 2: Grow and Allocate (Reclaim freed space)
+    SYS.processes.forEach(proc => {
+        if (proc.state === State.COMPLETED) return;
+        
+        const pagesNeeded = requiredPages(proc.memoryRequirement, SYS.pageSize);
+        if (pagesNeeded === 0) {
+            proc.allocated = 0;
+            return;
+        }
+
+        let currentFrames = [];
+        for (let i = 0; i < SYS.totalFrames; i++) {
+            if (SYS.frames[i].assigned && SYS.frames[i].processId === proc.processId) {
+                currentFrames.push({ idx: i, page: SYS.frames[i].pageNumber });
+            }
+        }
+        currentFrames.sort((a, b) => a.page - b.page);
+
+        if (currentFrames.length < pagesNeeded) {
+            let needed = pagesNeeded - currentFrames.length;
+            let newlyAllocated = [];
+
+            for (let i = 0; i < SYS.totalFrames && needed > 0; i++) {
+                if (SYS.frames[i].assigned === 0) {
+                    newlyAllocated.push(i);
+                    needed--;
                 }
             }
-        }
 
-        if (allocatedPages < pagesNeeded) {
-            for (let j = 0; j < SYS.totalFrames; j++) {
-                if (SYS.frames[j].assigned === 1 && SYS.frames[j].processId === proc.processId) {
-                    swapOutPage(proc.processId, SYS.frames[j].pageNumber);
-                    SYS.frames[j].assigned = 0;
-                    SYS.frames[j].processId = -1;
-                    SYS.frames[j].pageNumber = -1;
+            if (needed === 0) {
+                newlyAllocated.forEach((fIdx, i) => {
+                    SYS.frames[fIdx].assigned = 1;
+                    SYS.frames[fIdx].processId = proc.processId;
+                    SYS.frames[fIdx].pageNumber = currentFrames.length + i + 1;
+                });
+                proc.allocated = 1;
+                proc.state = State.RUNNING;
+                changed = true;
+            } else {
+                if (currentFrames.length > 0) {
+                    currentFrames.forEach(f => {
+                        swapOutPage(proc.processId, f.page);
+                        SYS.frames[f.idx].assigned = 0;
+                        SYS.frames[f.idx].processId = -1;
+                        SYS.frames[f.idx].pageNumber = -1;
+                    });
                     changed = true;
                 }
+                proc.allocated = 0;
+                proc.state = State.WAITING;
             }
-        }
-
-        if (allocatedPages === pagesNeeded) {
-            proc.allocated = 1;
-            proc.state = State.RUNNING;
         } else {
-             if(proc.allocated) changed = true; 
-             proc.allocated = 0;
-             proc.state = State.WAITING;
+            if (!proc.allocated || proc.state !== State.RUNNING) {
+                proc.allocated = 1;
+                proc.state = State.RUNNING;
+                changed = true;
+            }
         }
     });
 
@@ -203,6 +242,9 @@ function deallocateProcess(pid) {
     }
     updateDashboard(changed);
     
+    // Automatically try to allocate waiting processes into newly freed space
+    setTimeout(() => allocateMemory(), 500);
+
     Swal.fire({
         icon: 'success',
         title: 'Memory Freed',
@@ -462,7 +504,23 @@ function updateDashboard(animate = true) {
     SYS.frames.forEach((f, idx) => {
         let div = document.createElement('div');
         div.className = `ram-block ${f.assigned ? 'active' : ''}`;
-        div.innerHTML = `<span class="block-idx">${idx+1}</span><div class="pid">${f.assigned ? 'P'+f.processId : ''}</div><div class="page">${f.assigned ? 'P'+f.pageNumber : ''}</div>`;
+        
+        if (f.assigned) {
+            const color = getProcessColor(f.processId);
+            div.style.backgroundColor = color;
+            div.style.borderColor = color;
+            div.style.boxShadow = `0 0 12px ${color}66`; // Added alpha for softer glow
+            
+            div.innerHTML = `
+                <span class="block-idx">${idx + 1}</span>
+                <div class="pid-tag">P${f.processId}</div>
+                <div class="page-num">PG ${f.pageNumber}</div>
+            `;
+            div.title = `Process ${f.processId}, Page ${f.pageNumber}`;
+        } else {
+            div.innerHTML = `<span class="block-idx">${idx + 1}</span>`;
+        }
+
         grid.appendChild(div);
     });
     

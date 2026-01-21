@@ -106,3 +106,59 @@ The JavaScript logic mirrors standard Operating System C implementations:
 *   **Simulation vs Real-Time**:
     *   The **Interactive Dashboard** uses discrete events driven by user clicks.
     *   The **Performance Matrix** generates a randomized "Reference String" (sequence of page accesses) based on the current processes to mathematically simulate CPU workload.
+
+---
+
+## 6. Worked Example: RAM Allocation In-Depth
+
+To understand how the **RAM Allocation Map** works, let's walk through a scenario:
+
+### The Setup
+*   **Total Frames**: 10
+*   **Page Size**: 4 KB
+*   **Processes**: 
+    1.  **Process 1 (P1)**: 10 KB (Needs 3 Pages)
+    2.  **Process 2 (P2)**: 4 KB (Needs 1 Page)
+
+### Step 1: Initial Allocation
+When you initialize:
+*   **P1** fills **Frames 1, 2, and 3**.
+*   **P2** fills **Frame 4**.
+*   **Total Used**: 4 Frames (16 KB Physical).
+*   **Internal Fragmentation**: 
+    *   P1 needs 10KB but takes 3 pages (12KB). **2KB Frag**.
+    *   P2 needs 4KB and takes 1 page (4KB). **0KB Frag**.
+    *   *Dashboard shows*: Int. Frag = 2 KB.
+
+### Step 2: Dynamic Growth (Request More)
+You select **P2** and request **+6 KB**:
+*   P2 now needs 10 KB total (4KB + 6KB).
+*   Calculation: `ceil(10 / 4) = 3 Pages`.
+*   P2 already has 1 page in Frame 4. It needs **2 more**.
+*   The system searches for free frames and finds **Frame 5 and Frame 6**.
+*   *RAM Map*: Frame 4 remains "P2 PG 1". Frames 5 & 6 become "P2 PG 2" and "P2 PG 3".
+
+### Step 3: Dealing with Fragmentation (Deallocation)
+You **Delete P1**:
+*   Frames 1, 2, and 3 become empty (Dark).
+*   **P2** is still in Frames 4, 5, and 6. 
+*   This creates a **hole** at the beginning of memory.
+
+### Step 4: Re-allocation
+You create a new **Process 3 (P3)** with 8 KB (2 Pages):
+*   The system scans for free frames. It finds the "hole" at Frame 1.
+*   *Result*: P3 occupies **Frame 1 and Frame 2**.
+*   *RAM Map*: You see P3 at the start, then a gap (Frame 3), then P2.
+
+---
+
+## 7. Troubleshooting the Visualizer
+
+### "Why are all my algorithms showing the same results?"
+Check your **Frame Count**. If the number of frames is greater than or equal to the number of unique pages in your reference string, every algorithm will have the exact same number of faults (the initial loading misses). To see a difference, ensure your frames are limited (e.g., use 3 frames for a string with 7 unique pages).
+
+### "What do the block numbers mean?"
+The small number in the corner is the **Physical Frame Index**. In a real computer, this corresponds to a specific address in your RAM sticks.
+
+### "Why did my process move to the Waiting state?"
+This happens when you request more memory than the total system Frames can provide. The system effectively "swaps" the process out of RAM to prevent it from crashing the simulated system.
